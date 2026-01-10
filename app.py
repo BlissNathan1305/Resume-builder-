@@ -1,271 +1,252 @@
+# app.py
 import streamlit as st
+from reportlab.lib.pagesizes import LETTER
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
+from reportlab.lib import colors
 from docx import Document
-from fpdf import FPDF
-from io import BytesIO
-import datetime
-import re
-from PIL import Image
-from docx.shared import Inches
+from docx.shared import Pt, RGBColor
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+import io
 
-# ---------- Page Setup ----------
-st.set_page_config(page_title="Premium Resume Builder", page_icon=":briefcase:", layout="wide")
-st.title("📄 Premium Resume Builder")
-st.write("Create professional resumes with multiple templates and color themes. Upload photo, preview live, and download!")
+# -----------------------
+# Streamlit Config
+# -----------------------
+st.set_page_config(page_title="Premium CV Builder", layout="wide")
+st.title("Premium CV / Resume Builder")
+st.write("Fill in your details and export a professionally styled CV as PDF or DOCX.")
 
-# ---------- Helper Functions ----------
-def sanitize_filename(name):
-    return re.sub(r"[^\w\d-]", "_", name)
+# -----------------------
+# Theme & Styling
+# -----------------------
+st.sidebar.header("Theme & Styling")
+template = st.sidebar.selectbox("Choose Template", ["Classic ATS", "Modern Professional", "Designer Minimal"])
+accent_color = st.sidebar.selectbox("Accent Color", ["Blue", "Gray", "Green", "Black"])
 
-def bullet_list(text):
-    return [f"- {line.strip()}" for line in text.split("\n") if line.strip()]
+# -----------------------
+# Personal Information
+# -----------------------
+st.header("Personal Information")
+name = st.text_input("Full Name")
+title = st.text_input("Professional Title")
+email = st.text_input("Email")
+phone = st.text_input("Phone")
+location = st.text_input("Location")
+linkedin = st.text_input("LinkedIn URL")
+github = st.text_input("GitHub URL")
+portfolio = st.text_input("Portfolio URL")
 
-def resize_image(image, max_size=(150, 150)):
-    img = Image.open(image)
-    img.thumbnail(max_size)
-    return img
+# -----------------------
+# Professional Summary
+# -----------------------
+st.header("Professional Summary")
+summary_input = st.text_area("Write your professional summary here", height=100)
 
-timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M")
+# -----------------------
+# Dynamic Sections
+# -----------------------
+def add_dynamic_section(section_name, fields):
+    st.header(section_name)
+    items = []
+    num_items = st.number_input(f"How many {section_name} entries?", min_value=1, max_value=20, value=1, step=1)
+    for i in range(num_items):
+        st.subheader(f"{section_name} #{i+1}")
+        item = {}
+        for field in fields:
+            item[field] = st.text_input(f"{field} (Entry #{i+1})")
+        items.append(item)
+    return items
 
-# ---------- Sidebar Input ----------
-st.sidebar.header("Enter Your Details")
+work_fields = ["Job Title", "Company", "Start Date - End Date", "Responsibilities (comma-separated)"]
+education_fields = ["Degree", "Institution", "Start Date - End Date", "Details"]
+project_fields = ["Project Name", "Description", "Technologies Used"]
 
-# Input fields
-name_input = st.sidebar.text_input("Full Name", placeholder="John Doe")
-email_input = st.sidebar.text_input("Email", placeholder="john@example.com")
-phone_input = st.sidebar.text_input("Phone Number", placeholder="+234 801 234 5678")
-linkedin_input = st.sidebar.text_input("LinkedIn (optional)", placeholder="https://linkedin.com/in/username")
-github_input = st.sidebar.text_input("GitHub (optional)", placeholder="https://github.com/username")
-summary_input = st.sidebar.text_area("Professional Summary", placeholder="Brief introduction about yourself", height=100)
-education_input = st.sidebar.text_area("Education", placeholder="B.Sc Computer Science, XYZ University, 2020")
-experience_input = st.sidebar.text_area("Work Experience", placeholder="Company - Role (Year-Year)\n- Achievement 1\n- Achievement 2")
-skills_input = st.sidebar.text_input("Skills (comma separated)", placeholder="Python, Data Analysis, Machine Learning")
-projects_input = st.sidebar.text_area("Projects", placeholder="Project Name - Description\n- Key achievement 1\n- Key achievement 2")
-photo = st.sidebar.file_uploader("Upload Profile Photo (optional)", type=["jpg","png"])
+work_experience = add_dynamic_section("Work Experience", work_fields)
+education = add_dynamic_section("Education", education_fields)
+projects = add_dynamic_section("Projects", project_fields)
+skills = st.text_input("Skills (comma-separated)")
+certifications = st.text_input("Certifications (comma-separated)")
 
-# Template & Theme
-template_option = st.sidebar.selectbox("Choose Resume Template", ["Classic", "Modern", "Creative"])
-color_theme = st.sidebar.selectbox("Choose Color Theme", ["Blue", "Navy", "Green", "Dark Gray"])
+# -----------------------
+# PDF Generation Function (Premium Templates)
+# -----------------------
+def generate_pdf():
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=LETTER,
+                            rightMargin=72,leftMargin=72,
+                            topMargin=72,bottomMargin=18)
+    
+    styles = getSampleStyleSheet()
+    story = []
 
-# Sample resume checkbox
-use_sample = st.sidebar.checkbox("Load Sample Resume")
+    # Define template-specific styles
+    if template == "Classic ATS":
+        heading_color = colors.black
+        heading_style = ParagraphStyle('HeadingStyle', parent=styles['Heading2'], textColor=heading_color, fontSize=14, spaceAfter=6)
+        subheading_style = ParagraphStyle('SubHeading', parent=styles['Heading3'], textColor=heading_color, fontSize=12, spaceAfter=4)
+        normal_style = styles['Normal']
+    elif template == "Modern Professional":
+        color_map = {"Blue": colors.HexColor("#0b5394"),
+                     "Gray": colors.HexColor("#4d4d4d"),
+                     "Green": colors.HexColor("#38761d"),
+                     "Black": colors.black}
+        heading_color = color_map.get(accent_color, colors.HexColor("#0b5394"))
+        heading_style = ParagraphStyle('HeadingStyle', parent=styles['Heading2'], textColor=heading_color, fontSize=16, spaceAfter=8)
+        subheading_style = ParagraphStyle('SubHeading', parent=styles['Heading3'], textColor=heading_color, fontSize=13, spaceAfter=6)
+        normal_style = styles['Normal']
+    else:  # Designer Minimal
+        heading_color = colors.HexColor("#222222")
+        heading_style = ParagraphStyle('HeadingStyle', parent=styles['Heading2'], textColor=heading_color, fontSize=16, spaceAfter=8, leading=18)
+        subheading_style = ParagraphStyle('SubHeading', parent=styles['Heading3'], textColor=heading_color, fontSize=13, spaceAfter=6, leading=15)
+        normal_style = styles['Normal']
 
-# ---------- Assign Inputs ----------
-if use_sample:
-    name = "Jane Doe"
-    email = "jane.doe@example.com"
-    phone = "+234 801 234 5678"
-    linkedin = "https://linkedin.com/in/janedoe"
-    github = "https://github.com/janedoe"
-    summary = "A motivated software engineer with experience in Python, Machine Learning, and Web Development."
-    education = "B.Sc Computer Science, XYZ University, 2020"
-    experience = "ABC Corp - Software Engineer (2020-2023)\n- Developed a machine learning pipeline\n- Improved app performance by 30%"
-    skills = "Python, Machine Learning, Streamlit, Data Analysis"
-    projects = "Resume Builder Project - Built a professional resume builder with Python and Streamlit"
-else:
-    name = name_input.strip()
-    email = email_input.strip()
-    phone = phone_input.strip()
-    linkedin = linkedin_input.strip()
-    github = github_input.strip()
-    summary = summary_input.strip()
-    education = education_input.strip()
-    experience = experience_input.strip()
-    skills = skills_input.strip()
-    projects = projects_input.strip()
+    # Personal Info
+    story.append(Paragraph(f"<b>{name}</b>", heading_style))
+    story.append(Paragraph(f"{title}", normal_style))
+    story.append(Paragraph(f"{email} | {phone} | {location}", normal_style))
+    links = " | ".join([linkedin, github, portfolio])
+    if links.strip() != "|":
+        story.append(Paragraph(links, normal_style))
+    story.append(Spacer(1, 12))
 
-# ---------- Color Map ----------
-color_map_hex = {
-    "Blue": "#0066CC",
-    "Navy": "#000066",
-    "Green": "#009900",
-    "Dark Gray": "#323232"
-}
-theme_color_hex = color_map_hex.get(color_theme, "#0066CC")
-theme_color_rgb = {
-    "Blue": (0,102,204),
-    "Navy": (0,0,102),
-    "Green": (0,153,0),
-    "Dark Gray": (50,50,50)
-}.get(color_theme, (0,102,204))
+    # Professional Summary
+    story.append(Paragraph("Professional Summary", heading_style))
+    story.append(Paragraph(summary_input, normal_style))
+    story.append(Spacer(1, 12))
 
-# ---------- Resume Preview with Live Theme ----------
-preview = st.sidebar.checkbox("Preview Resume")
-if preview:
-    st.subheader("📄 Resume Preview")
-    st.markdown(f"<h2 style='color:{theme_color_hex};'>{name}</h2>", unsafe_allow_html=True)
-    st.markdown(f"**Email:** {email} | **Phone:** {phone} | **LinkedIn:** {linkedin} | **GitHub:** {github}")
+    # Work Experience
+    story.append(Paragraph("Work Experience", heading_style))
+    for job in work_experience:
+        story.append(Paragraph(f"{job['Job Title']} | {job['Company']} | {job['Start Date - End Date']}", subheading_style))
+        bullets = job['Responsibilities (comma-separated)'].split(',')
+        for b in bullets:
+            story.append(Paragraph(f"• {b.strip()}", normal_style))
+        story.append(Spacer(1, 6))
 
-    if summary:
-        st.markdown(f"<h4 style='color:{theme_color_hex};'>Profile Summary</h4>", unsafe_allow_html=True)
-        st.markdown(summary)
+    # Education
+    story.append(Paragraph("Education", heading_style))
+    for edu in education:
+        story.append(Paragraph(f"{edu['Degree']} | {edu['Institution']} | {edu['Start Date - End Date']}", subheading_style))
+        story.append(Paragraph(edu['Details'], normal_style))
+        story.append(Spacer(1, 6))
 
-    if education:
-        st.markdown(f"<h4 style='color:{theme_color_hex};'>Education</h4>", unsafe_allow_html=True)
-        for line in bullet_list(education):
-            st.markdown(f"- {line}")
+    # Projects
+    if any([p["Project Name"] for p in projects]):
+        story.append(Paragraph("Projects", heading_style))
+        for proj in projects:
+            story.append(Paragraph(proj['Project Name'], subheading_style))
+            story.append(Paragraph(proj['Description'], normal_style))
+            story.append(Paragraph(f"Technologies Used: {proj['Technologies Used']}", normal_style))
+            story.append(Spacer(1, 6))
 
-    if experience:
-        st.markdown(f"<h4 style='color:{theme_color_hex};'>Work Experience</h4>", unsafe_allow_html=True)
-        for line in bullet_list(experience):
-            st.markdown(f"- {line}")
+    # Skills
+    story.append(Paragraph("Skills", heading_style))
+    story.append(Paragraph(skills, normal_style))
+    story.append(Spacer(1, 6))
 
-    if skills:
-        st.markdown(f"<h4 style='color:{theme_color_hex};'>Skills</h4>", unsafe_allow_html=True)
-        st.markdown(", ".join([s.strip() for s in skills.split(",")]))
+    # Certifications
+    if certifications.strip() != "":
+        story.append(Paragraph("Certifications", heading_style))
+        story.append(Paragraph(certifications, normal_style))
+        story.append(Spacer(1, 6))
 
-    if projects:
-        st.markdown(f"<h4 style='color:{theme_color_hex};'>Projects</h4>", unsafe_allow_html=True)
-        for line in bullet_list(projects):
-            st.markdown(f"- {line}")
+    doc.build(story)
+    pdf = buffer.getvalue()
+    buffer.close()
+    return pdf
 
-    if photo:
-        st.image(photo, width=150)
+# -----------------------
+# DOCX Generation Function (Premium Templates)
+# -----------------------
+def generate_docx():
+    doc = Document()
 
-# ---------- Generate Resume ----------
-submitted = st.sidebar.button("Generate Resume")
-if submitted:
-    if not name or not email:
-        st.error("Please fill at least Name and Email.")
-    else:
-        st.success("Generating your resume...")
+    # Define template font sizes
+    if template == "Classic ATS":
+        heading_size = Pt(14)
+        subheading_size = Pt(12)
+    elif template == "Modern Professional":
+        heading_size = Pt(16)
+        subheading_size = Pt(13)
+    else:  # Designer Minimal
+        heading_size = Pt(16)
+        subheading_size = Pt(13)
 
-        # ---------- Word Resume ----------
-        doc = Document()
-        doc.add_heading(name, 0)
-        if photo:
-            try:
-                doc.add_picture(photo, width=Inches(1.5))
-            except:
-                pass
-        if summary:
-            doc.add_heading("Profile Summary", level=1)
-            doc.add_paragraph(summary)
-        doc.add_heading("Contact Information", level=1)
-        doc.add_paragraph(f"Email: {email}\nPhone: {phone}\nLinkedIn: {linkedin}\nGitHub: {github}")
-        for section_name, content in [("Education", education), ("Work Experience", experience),
-                                      ("Skills", skills), ("Projects", projects)]:
-            if content:
-                doc.add_heading(section_name, level=1)
-                if section_name=="Skills":
-                    doc.add_paragraph(", ".join([s.strip() for s in skills.split(",")]))
-                else:
-                    for line in bullet_list(content):
-                        doc.add_paragraph(line)
-        buffer_docx = BytesIO()
-        doc.save(buffer_docx)
-        buffer_docx.seek(0)
-        st.download_button(
-            label="Download Word Resume (.docx)",
-            data=buffer_docx,
-            file_name=f"{sanitize_filename(name)}_{template_option}_{color_theme}_Resume_{timestamp}.docx",
-            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        )
+    def add_heading(text, level):
+        h = doc.add_heading(text, level=level)
+        run = h.runs[0]
+        if level == 1:
+            run.font.size = heading_size
+        else:
+            run.font.size = subheading_size
+        if template == "Modern Professional":
+            color_map = {"Blue": RGBColor(11,83,148),
+                         "Gray": RGBColor(77,77,77),
+                         "Green": RGBColor(56,118,29),
+                         "Black": RGBColor(0,0,0)}
+            run.font.color.rgb = color_map.get(accent_color, RGBColor(11,83,148))
+        return h
 
-        # ---------- PDF Resume ----------
-        pdf = FPDF()
-        pdf.add_page()
-        pdf.set_auto_page_break(auto=True, margin=15)
-        pdf.set_margins(15, 15, 15)
+    # Personal Info
+    add_heading(name, 0)
+    doc.add_paragraph(title)
+    doc.add_paragraph(f"{email} | {phone} | {location}")
+    links = " | ".join([linkedin, github, portfolio])
+    if links.strip() != "|":
+        doc.add_paragraph(links)
 
-        # Profile photo
-        if photo:
-            try:
-                img = resize_image(photo)
-                img.save("temp_photo.png")
-                if template_option in ["Classic", "Modern"]:
-                    pdf.image("temp_photo.png", x=160, y=15, w=30)
-                else:
-                    pdf.image("temp_photo.png", x=10, y=20, w=40)
-            except:
-                pass
+    # Professional Summary
+    add_heading("Professional Summary", 1)
+    doc.add_paragraph(summary_input)
 
-        # Name
-        pdf.set_font("Arial",'B',22)
-        pdf.set_text_color(30,30,30)
-        pdf.cell(0,12,name,ln=True,align="C" if template_option!="Creative" else "L")
-        pdf.set_line_width(0.5)
-        pdf.line(15,pdf.get_y(),195,pdf.get_y())
-        pdf.ln(5)
+    # Work Experience
+    add_heading("Work Experience", 1)
+    for job in work_experience:
+        add_heading(f"{job['Job Title']} | {job['Company']} | {job['Start Date - End Date']}", 2)
+        bullets = job['Responsibilities (comma-separated)'].split(',')
+        for b in bullets:
+            p = doc.add_paragraph(b.strip(), style='ListBullet')
 
-        # Contact
-        pdf.set_font("Arial",'',12)
-        pdf.set_text_color(50,50,50)
-        pdf.multi_cell(0,7,f"Email: {email}\nPhone: {phone}\nLinkedIn: {linkedin}\nGitHub: {github}")
+    # Education
+    add_heading("Education", 1)
+    for edu in education:
+        add_heading(f"{edu['Degree']} | {edu['Institution']} | {edu['Start Date - End Date']}", 2)
+        doc.add_paragraph(edu['Details'])
 
-        # Section heading helper
-        def section_heading(title):
-            pdf.ln(3)
-            pdf.set_font("Arial",'B',14)
-            pdf.set_text_color(*theme_color_rgb)
-            pdf.cell(0,6,title,ln=True)
-            pdf.set_text_color(50,50,50)
-            pdf.set_line_width(0.3)
-            pdf.line(15,pdf.get_y(),195,pdf.get_y())
-            pdf.ln(2)
+    # Projects
+    if any([p["Project Name"] for p in projects]):
+        add_heading("Projects", 1)
+        for proj in projects:
+            add_heading(proj['Project Name'], 2)
+            doc.add_paragraph(proj['Description'])
+            doc.add_paragraph(f"Technologies Used: {proj['Technologies Used']}")
 
-        # Sections
-        if template_option == "Classic":
-            for section_name, content in [("Education", education), ("Work Experience", experience),
-                                          ("Skills", skills), ("Projects", projects)]:
-                if content:
-                    section_heading(section_name)
-                    pdf.set_font("Arial",'',12)
-                    if section_name=="Skills":
-                        for s in [x.strip() for x in skills.split(",")]:
-                            pdf.cell(5)
-                            pdf.cell(0,6,f"- {s}",ln=True)
-                    else:
-                        for line in bullet_list(content):
-                            pdf.cell(5)
-                            pdf.multi_cell(0,6,line)
+    # Skills
+    add_heading("Skills", 1)
+    doc.add_paragraph(skills)
 
-        elif template_option == "Modern":
-            left_x = 10
-            right_x = 105
-            y_start = pdf.get_y()
-            if skills:
-                pdf.set_xy(left_x,y_start)
-                section_heading("Skills")
-                pdf.set_font("Arial",'',12)
-                for s in [x.strip() for x in skills.split(",")]:
-                    pdf.cell(5)
-                    pdf.cell(0,6,f"- {s}",ln=True)
-            pdf.set_xy(right_x,y_start)
-            for section_name, content in [("Education", education), ("Work Experience", experience), ("Projects", projects)]:
-                if content:
-                    section_heading(section_name)
-                    pdf.set_font("Arial",'',12)
-                    for line in bullet_list(content):
-                        pdf.multi_cell(0,6,line)
+    if certifications.strip() != "":
+        add_heading("Certifications", 1)
+        doc.add_paragraph(certifications)
 
-        elif template_option == "Creative":
-            pdf.set_font("Arial",'B',14)
-            pdf.cell(50,8,"Skills & Contact",ln=True)
-            pdf.set_font("Arial",'',12)
-            pdf.multi_cell(50,6,f"Email: {email}\nPhone: {phone}\nLinkedIn: {linkedin}\nGitHub: {github}\nSkills: {skills}")
-            pdf.ln(2)
-            pdf.set_xy(70,pdf.get_y())
-            for section_name, content in [("Profile Summary", summary), ("Education", education),
-                                          ("Work Experience", experience), ("Projects", projects)]:
-                if content:
-                    section_heading(section_name)
-                    pdf.set_font("Arial",'',12)
-                    for line in bullet_list(content):
-                        pdf.multi_cell(0,6,line)
+    buffer = io.BytesIO()
+    doc.save(buffer)
+    docx_bytes = buffer.getvalue()
+    buffer.close()
+    return docx_bytes
 
-        # Page border
-        pdf.set_draw_color(180,180,180)
-        pdf.rect(5,5,200,287)
+# -----------------------
+# Download Buttons
+# -----------------------
+col1, col2 = st.columns(2)
+with col1:
+    if st.button("Download PDF"):
+        pdf = generate_pdf()
+        st.download_button(label="Download PDF", data=pdf, file_name=f"{name}_CV.pdf", mime="application/pdf")
+with col2:
+    if st.button("Download DOCX"):
+        docx_bytes = generate_docx()
+        st.download_button(label="Download DOCX", data=docx_bytes, file_name=f"{name}_CV.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
 
-        buffer_pdf = BytesIO()
-        pdf.output(buffer_pdf)
-        buffer_pdf.seek(0)
-        st.download_button(
-            label="Download PDF Resume (.pdf)",
-            data=buffer_pdf,
-            file_name=f"{sanitize_filename(name)}_{template_option}_{color_theme}_Resume_{timestamp}.pdf",
-            mime="application/pdf"
-        )
-
-st.markdown("---")
-st.write("Made with ❤️ using Python and Streamlit")
+st.info("You can fill all fields manually and export your CV with premium templates.")
