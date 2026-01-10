@@ -1,5 +1,6 @@
-streamlit
-reportlab
-python-docx
+streamlit==1.26.0
+fpdf2==2.7.8
+
+
 
 
